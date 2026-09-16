@@ -27,7 +27,7 @@ from quant.sports_features import TENNIS_SET_FEATURES
 logger = structlog.get_logger()
 
 OUT_CSV = Path("data/tennis_sets_live.csv")
-POLL_S = 45
+POLL_S = 60
 
 FEATURE_ROWS = [
     "event_id",
@@ -50,8 +50,11 @@ def collect(minutes: float) -> None:
     client = SofaScoreClient()
     # pending[event_id][set_number] = dict (la ultima fila capturada para ese set en curso)
     pending: dict[int, dict[int, dict]] = {}
+    # stats_cache[event_id] = (block, ts) reusado entre ticks para no pegolear la API
+    stats_cache: dict[int, tuple[dict, float]] = {}
     deadline = time.time() + minutes * 60
     n_labeled = 0
+    STATS_TTL_S = 180  # stats casi no cambian durante un set; basta refrescar cada 3 min
 
     try:
         while time.time() < deadline:
@@ -59,18 +62,22 @@ def collect(minutes: float) -> None:
                 matches = client.fetch_live_events()
             except Exception as exc:
                 logger.warning("sofascore.poll_error", exc=str(exc))
-                time.sleep(POLL_S)
+                time.sleep(30 if "403" in str(exc) else POLL_S)
                 continue
 
             seen = set()
-            stats_cache: dict[int, dict] = {}
 
             for m in matches:
                 seen.add(m.event_id)
                 if m.current_set < 1:
                     continue
-                blocks = stats_cache.get(m.event_id) or client.fetch_event_statistics(m.event_id)
-                stats_cache[m.event_id] = blocks
+                now = time.time()
+                cached = stats_cache.get(m.event_id)
+                if cached and now - cached[1] < STATS_TTL_S:
+                    blocks = cached[0]
+                else:
+                    blocks = client.fetch_event_statistics(m.event_id)
+                    stats_cache[m.event_id] = (blocks, now)
 
                 # Cerrar sets anteriores: al ver el set actual, todos los sets anteriores estan resueltos
                 prev = pending.setdefault(m.event_id, {})
