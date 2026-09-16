@@ -157,7 +157,7 @@ class SofaScoreClient:
     """Minimo: live events + estadisticas por evento, con curl_cffi para fingerprint de Chrome."""
 
     def __init__(self):
-        self._impersonate = "chrome126"
+        self._impersonate = "chrome136"
 
     def _get_json(self, url: str) -> dict:
         resp = cffi_requests.get(url, impersonate=self._impersonate, timeout=10)
@@ -169,8 +169,13 @@ class SofaScoreClient:
         return parse_live_events(payload)
 
     def fetch_event_statistics(self, event_id: int) -> dict:
-        payload = self._get_json(f"{SOFASCORE_BASE}/event/{event_id}/statistics")
-        return _period_blocks(payload)
+        try:
+            payload = self._get_json(f"{SOFASCORE_BASE}/event/{event_id}/statistics")
+            return _period_blocks(payload)
+        except cffi_requests.exceptions.HTTPError as exc:
+            if exc.response is not None and exc.response.status_code == 404:
+                return {}
+            raise
 
     def close(self) -> None:
         pass

@@ -138,7 +138,7 @@ def train() -> None:
         base = max(float(sub["won"].mean()), 1 - float(sub["won"].mean()))
         print(f"  set {int(set_n)}: n={len(sub)} acc={subacc:.3f} baseline={base:.3f}")
 
-    model.model.save_model("models/tennis_set_model.txt")
+    model.model.booster_.save_model("models/tennis_set_model.txt")
     print("Guardado en models/tennis_set_model.txt")
 
 
