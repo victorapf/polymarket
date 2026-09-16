@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  engine:
+    build: .
+    restart: unless-stopped   # CAPA 5.1 - reinicio automatico ante fallos
+    env_file: .env
+    depends_on:
+      - redis
+    # En un VPS real, esto se complementa con PM2 dentro del contenedor o con
+    # `docker run --restart=always` si no se usa compose.
